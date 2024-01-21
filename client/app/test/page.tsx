@@ -1,7 +1,7 @@
 "use client"
 import React, { ChangeEvent, useState } from 'react';
-import './globals.css'
-import { useRouter } from 'next/router';
+import '../globals.css'
+import { useRouter } from 'next/navigation';
 import axios from "axios"
 import Link from 'next/link';
 import Head from 'next/head';
@@ -36,31 +36,6 @@ const Login: React.FC = () => {
 
   };
 
-  //  const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
-  //   event.preventDefault();
-    
-  //   try {
-  //     const resultAction = active === 'admin'
-  //       ? await adminLogin(formData).unwrap()
-  //       : await employeeLogin(formData).unwrap();
-      
-  //     if (active === 'admin' && 'admin' in resultAction) {
-  //       const { _id } = resultAction.admin;
-  //       router.push(`/admin/${_id}`);
-  //     } else if (active === 'employee' && 'employee' in resultAction) {
-  //       const { id } = resultAction.employee;
-  //       router.push(`/emp/${id}`);
-  //     }
-  //   } catch (error: any) {
-  //     // Error type is 'any' because different types of errors can occur (network errors, etc.)
-  //     const errorMessage = error?.data?.message || 'An error occurred during login.';
-  //     setErrorMessage(errorMessage);
-  //   }
-  // };
-  
-  // Insert the JSX for your component with appropriate form and inputs
-
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
@@ -77,18 +52,20 @@ const Login: React.FC = () => {
         //Admin Login---------------------------------------
         if (active === 'admin') {
           const { firstName, _id } = response.data.admin;
-          // console.log("admin login success", firstName);
-          router.push({ pathname: `/admin/${_id}`, query: { adminValue: isAdmin } })
+          console.log("admin login success", firstName);
+          // router.push({ hre: `/admin/${_id}`, query: { adminValue: isAdmin } })
+          router.push(`/admin/${_id}`)
         }
 
         //Employee Login-------------------------------------
         if (active === 'employee') {
           const { firstName, id } = response.data.employee;
+          router.push(`/emp/${id}`)
           // console.log("employee login success");
-          router.push({
-            pathname: `/emp/${id}`,
-            query: { employee: employeeValue }
-          })
+          // router.push({
+          //   pathname: `/emp/${id}`,
+          //   query: { employee: employeeValue }
+          // })
 
         }
       }

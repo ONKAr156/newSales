@@ -2,3 +2,6 @@
 
 
  Documentation Link :https://docs.google.com/document/d/1VeD2HFiEsM4cBTF50ZYuJbySa-9piEIQikIIczQUXFc/edit
+
+ ## server :- npm start
+ ## client :- npm run dev

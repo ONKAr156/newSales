@@ -227,7 +227,8 @@ router.get('/fetchemployees', async (req, res) => {
 });
 
 // Route to fetch a specific employee by ID ------------------------------------------------
-router.get('/:id', protected, async (req, res) => {
+// router.get('/:id', protected, async (req, res) => {
+router.get('/:id', async (req, res) => {
   // ()
   const { id } = req.params;
 

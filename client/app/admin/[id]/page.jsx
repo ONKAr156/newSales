@@ -152,19 +152,8 @@ const page = ({ params }) => {
     }, []);
     // }, [employees]);
 
-    useEffect(() => {
-        //If adminValue is present then show data
-        if (search.get('adminValue') === null) {
-            setValidate(false);
-        } else {
-            setValidate(true)
-        }
-    }, []);
-
     return <>
-        <div>
-            {
-                validate ? // true
+        
                     <div className='min-h-screen bg-gray-100 p-4'>
                         {/* <pre>{JSON.stringify(admin, null, 2)}</pre> */}
                         <p className='md:text-2xl my-2 font-semibold text-center'>Admin Dashboard</p>
@@ -310,14 +299,6 @@ const page = ({ params }) => {
 
                         </div>
                     </div>
-                    : // false
-                    <div className='flex flex-col h-screen items-center justify-center'>
-                        <h3>401 Unauthorized Please Login</h3>
-                        <Link href={'/login'}>Login</Link>
-                    </div>
-            }
-        </div>
-
 
         {/* Edit Modal-------------------------------------------------- */}
 

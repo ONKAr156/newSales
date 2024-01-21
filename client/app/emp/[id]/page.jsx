@@ -193,11 +193,13 @@ const page = ({ params }) => {
                       
                       </div>
                       <div className='text-end'>
-                      <button 
-                      // data-bs-toggle="modal" data-bs-target="#logoutModal"
-                      onClick={handleLogout}
-                      className='bg-blue-600 p-2  
-                       text-slate-50'>Logout</button>
+                      {
+                        admin?"":<button 
+                        // data-bs-toggle="modal" data-bs-target="#logoutModal"
+                        onClick={handleLogout}
+                        className='bg-blue-600 p-2  
+                         text-slate-50'>Logout</button>
+                      }
                       </div>
                     </div>)
 
