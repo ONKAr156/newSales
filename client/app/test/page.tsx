@@ -53,7 +53,7 @@ const Login: React.FC = () => {
         if (active === 'admin') {
           const { firstName, _id } = response.data.admin;
           console.log("admin login success", firstName);
-          // router.push({ hre: `/admin/${_id}`, query: { adminValue: isAdmin } })
+          // router.push({ hre: `/admin/${_id}`, query: { adminValue: isAdmin sfsasf} })
           router.push(`/admin/${_id}`)
         }
 
