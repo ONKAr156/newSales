@@ -103,6 +103,7 @@ const page = ({ params }) => {
                 });
                 setAdmin([data]);
                 toast.success('Welcome'); // Handle success
+                
                 // If a 401 is returned, redirect to the login page
             } catch (error) {
                 if (error.response && error.response.status === 401) {

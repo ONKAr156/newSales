@@ -1,28 +1,29 @@
 "use client"
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
-export const loginSlice = createApi({
+export const loginApi = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
     baseUrl: 'http://localhost:3000/', credentials: 'include'
   }),
   endpoints: (builder) => ({
+
     adminLogin: builder.mutation({
-      query: (credentials) => ({
+      query: (userData) => ({
         url: 'api/admin/login',
         method: 'POST',
-        body: credentials
+        body: userData
       })
     }),
-    
+
     employeeLogin: builder.mutation({
-      query: (credentials) => ({
+      query: (userData) => ({
         url: 'api/employee/login',
         method: 'POST',
-        body: credentials
+        body: userData
       })
     })
   })
 });
 
-export const {  useEmployeeLoginMutation,useAdminLoginMutation  } = loginSlice
+export const { useEmployeeLoginMutation, useAdminLoginMutation } = loginApi
