@@ -28,6 +28,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <StoreProvider>
+
         {children}
         <ToastContainer  position="top-right"
           autoClose={5000}
@@ -39,7 +40,7 @@ export default function RootLayout({
           draggable
           pauseOnHover
           theme="colored" />
-
+          
         </StoreProvider>
       </body>
     </html>

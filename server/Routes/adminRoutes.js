@@ -4,7 +4,9 @@ const Admin = require("../models/admin");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const admin = require("../models/admin");
-const { protected } = require('../middelwear/protected.js')
+const nodemailer = require('nodemailer');
+const { protected } = require('../middelwear/protected.js');
+
 
 const jwtSecret = "mynameissaurabhratnaparkhi";
 
@@ -36,7 +38,6 @@ router.get('/fetchadmin', async (req, res) => {
 // Get single admin
 router.get('/:id', protected, async (req, res) => {
   const { id } = req.params;
-
   try {
     const admin = await Admin.findById(id);
 
@@ -115,14 +116,13 @@ router.post('/logout', (req, res) => {
   }
 });
 
-
 //Register Admin Route
 router.post("/register", async (req, res) => {
   const { firstName, lastName, password, profileCreationDate, sale, id, adminId, email } = req.body;
 
   const hashedPassword = await bcrypt.hash(password, 10);
   const newAdmin = new Admin({ firstName, lastName, password: hashedPassword, profileCreationDate, sale, id, adminId, email });
-
+  
   try {
 
     const admin = await Admin.findOne({ firstName, lastName });
@@ -140,6 +140,111 @@ router.post("/register", async (req, res) => {
 
   }
 
+});
+
+// Password check (without OTP)
+router.post('/checkpass-pass/:id', async (req, res) => {
+  const { id } = req.params;
+  const { currentPassword } = req.body;
+  try {
+    const result = await Admin.findById(id);
+
+    await Admin.findByIdAndUpdate(result._id);
+
+    console.log(result);
+
+    if (!result) {
+      return res.status(401).json({ message: "Admin not found" })
+    }
+
+    const hashedPassword = await bcrypt.compare(currentPassword, result.password)
+    if (!hashedPassword) {
+      return res.status(401).json({ message: "Invalid Password please re-enter" })
+    }
+
+    return res.status(200).send({ message: 'Password matched successfully.', admin });
+
+  } catch (error) {
+    console.error('Error during OTP operation:', error);
+    return res.status(500).send({ message: 'Internal server error', error: error.message });
+  }
+});
+
+// Password check for Email (with OTP)
+router.post('/checkPass/:id', async (req, res) => {
+  const { id } = req.params;
+  const { currentPassword } = req.body;
+
+  const generateOTP = () => {
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    return otp.toString().substring(0, 6);
+  };
+
+  const otp = generateOTP();
+
+  try {
+    const result = await Admin.findById(id);
+
+    await Admin.findByIdAndUpdate(result._id, { OTP: otp });
+
+    const hashedPassword = await bcrypt.compare(currentPassword, result.password)
+    if (!hashedPassword) {
+      return res.status(401).json({ message: "Invalid Password please re-enter" })
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL,
+        pass: process.env.EMAIL_PASSWORD
+      }
+    });
+
+
+    const mailOptions = {
+      from: process.env.EMAIL,
+      to: "borgaonkar1998@gmail.com",
+      subject: 'OTP for Verification',
+      text: `Your Employee OTP is: ${otp}`
+    };
+
+    // Send email with OTP
+    transporter.sendMail(mailOptions, (error) => {
+      if (error) {
+        console.error('Error during email sending:', error);
+        return res.status(500).send({ message: 'There was an error sending the email.', error: error.message });
+      }
+      return res.status(200).send({ message: 'OTP sent successfully.', otp });
+    });
+
+  } catch (error) {
+    console.error('Error during OTP operation:', error);
+    return res.status(500).send({ message: 'Internal server error', error: error.message });
+  }
+});
+
+router.post("/otp/:id", async (req, res) => {
+  const { id } = req.params;
+  const { OTP } = req.body;
+  try {
+    const admin = await Admin.findOne({ _id: id });
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    if (admin.OTP === +OTP) {
+      await admin.save();
+      return res.status(200).json({
+        message: "OTP matched successfully",
+        Admin: admin,
+      });
+    } else {
+      return res.status(401).json({ message: "OTP did not match" });
+    }
+  } catch (error) {
+    console.error("Error during OTP update:", error);
+    return res.status(500).json({ message: "Internal server error", error: error.toString() });
+  }
 });
 
 // Update admin
@@ -164,6 +269,67 @@ router.put("/:id", async (req, res) => {
   } catch (error) {
     console.error("Error during admin update:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//Update Admin's Email  Specific
+router.put("/updateEmail/:id", async (req, res) => {
+  const { id } = req.params;
+  const { newEmail } = req.body;
+  try {
+
+    const admin = await Admin.findOne({ _id: id });
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+    // current email should'nt be same with new one
+    if (admin.email === newEmail) {
+      return res.status(404).json({ message: "Please enter a new email" });
+    }
+    admin.email = newEmail;
+    console.log(admin);
+    await admin.save();
+
+    return res.status(200).json({
+      message: "Admin Email updated successfully",
+      admin: admin,
+    });
+  } catch (error) {
+    console.error("Error during email update of Admin:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+//  Password -----------------------------------------------------------------------------
+router.put("/passupdate/:id", async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+  try {
+
+    const admin = await Admin.findOne({ _id: id });
+
+
+    if (!admin) {
+      return res.status(401).json({ message: "Admin not found" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    admin.password = hashedPassword;
+    console.log(admin);
+
+    // Save the updated admin data
+    await admin.save();
+    console.log(admin);
+
+    return res.status(200).json({
+      message: "Admin updated successfully",
+      admin: admin,
+    });
+  } catch (error) {
+    console.error("Error during password update for Admin :", error);
+    return res.status(500).json({ message: "Error during password update for Adminr", error });
   }
 });
 

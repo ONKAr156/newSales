@@ -34,8 +34,11 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "app/emp/[id]/page.jsx"
-, "pages/submission.tsx"  ],
+    "app/emp/[id]/page.jsx",
+    "pages/submission.tsx",
+    "components/Pagination.jsx",
+    "components/Candidates.jsx"
+, "app/candidates/page.jsx"  ],
   "exclude": [
     "node_modules"
   ]

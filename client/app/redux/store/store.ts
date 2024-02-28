@@ -1,13 +1,22 @@
 import { configureStore } from '@reduxjs/toolkit'
-import { loginSlice } from '../slice/loginSlice'
+import { loginApi } from '../api/loginApi'
+import { adminApi } from '../api/AdminApi'
+import authSlice from '../slice/authSlice'
+import { employeeApi } from '../api/EmployeeApi'
 
 export const makeStore = () => {
   return configureStore({
     reducer: {
-      [loginSlice.reducerPath]: loginSlice.reducer,
+      [loginApi.reducerPath]: loginApi.reducer,
+      [adminApi.reducerPath]: adminApi.reducer,
+      [employeeApi.reducerPath]: employeeApi.reducer,
+      auth: authSlice
     },
-    // middleware:def => [...def(),loginSlice.middleware]
+    devTools: true,
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(loginApi.middleware, adminApi.middleware, employeeApi.middleware)
   })
+
 }
 
 // Infer the type of makeStore

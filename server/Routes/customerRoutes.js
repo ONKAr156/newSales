@@ -1,71 +1,39 @@
 const express = require('express');
 const router = express.Router();
 const Customer = require('../models/customer');
+const Employee = require("../models/employee");
 
-// Customer login
-router.post('/login', async (req, res) => {
-  const { username, name, password } = req.body;
 
+router.get('/', async (req, res) => {
   try {
-    const customer = await Customer.findOne({ username });
+    // Fetch all employees from the MongoDB collection
+    const customer = await Customer.find();
+    res.json(customer);
 
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    // Add your own authentication logic here, e.g., comparing hashed passwords
-    if (customer.password !== password) {
-      return res.status(401).json({ message: 'Invalid password' });
-    }
-
-    return res.status(200).json({ message: 'Login successful', customer });
-  } catch (error) {
-    console.error('Error during login:', error);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Customer register
-router.post('/register', async (req, res) => {
-  const { username,name, password } = req.body;
-
-  try {
-    const customer = await Customer.findOne({ username });
-
-    if (customer) {
-      return res.status(409).json({ message: 'Customer already exists OR username not unique' });
-    }
-
-    const newCustomer = new Customer({
-      username,
-      name,
-      password
-    });
-
-    await newCustomer.save();
-
-    return res.status(201).json({ message: 'Customer created successfully', customer: newCustomer });
-  } catch (error) {
-    console.error('Error during sign-up:', error);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Route to fetch a specific customer by ID
-router.get('/home/:username', async (req, res) => {
-  const { username } = req.params; // Get the customer's username from the route parameter
-  
-  try {
-    const customer = await Customer.findOne({ username });
-
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    return res.json(customer);
   } catch (error) {
     console.error('Error fetching customer data:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+router.post('/register', async (req, res) => {
+  const { referralEmployee, firstName, lastName, products, email } = req.body;
+
+  // console.log(req.body);
+
+  const findReferral = await Employee.findOne({ referalID: referralEmployee })
+  if (!findReferral) {
+    return res.status(400).json({ message: 'Invalid referral ID ' });
+  }
+
+  try {
+    console.log(req.body)
+    await Customer.create(req.body)
+
+    res.status(200).json({ message: 'Customer Saved success' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error while registration', error: error.message });
   }
 });
 
