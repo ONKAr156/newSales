@@ -1,12 +1,11 @@
 "use client"
-import React, { ChangeEvent, useState } from 'react';
+import React, { ChangeEvent, useEffect, useState } from 'react';
 import '../globals.css'
 import { useRouter } from 'next/navigation';
 import axios from "axios"
 import Link from 'next/link';
 import Head from 'next/head';
 import { useAdminLoginMutation, useEmployeeLoginMutation } from '@/app/redux/api/loginApi';
-
 interface FormData {
     email: String,
     password: String,

@@ -161,9 +161,9 @@ router.post('/:id', async (req, res) => {
 
 //Generate EMAIL + OTP---------------------------------------------------------------------
 
-router.post('/sendEmail/:id', async (req, res) => {
+router.post('/checkPass/:id', async (req, res) => {
   const { id } = req.params;
-  const { oldEmail } = req.body;
+  const { currentPassword } = req.body;
 
   const generateOTP = () => {
     const otp = Math.floor(100000 + Math.random() * 900000);
@@ -174,11 +174,16 @@ router.post('/sendEmail/:id', async (req, res) => {
 
   try {
     const result = await Employee.findOne({ id });
+
     await Employee.findByIdAndUpdate(result._id, { OTP: otp });
 
     // Check if the Employee update was successful
     if (!Employee) {
       return res.status(404).send({ message: 'Employee not found.' });
+    }
+    const hashedPassword = await bcrypt.compare(currentPassword, result.password)
+    if (!hashedPassword) {
+      return res.status(401).json({ message: "Invalid Password please re-enter" })
     }
 
     const transporter = nodemailer.createTransport({
@@ -192,9 +197,9 @@ router.post('/sendEmail/:id', async (req, res) => {
 
     const mailOptions = {
       from: process.env.EMAIL,
-      to: oldEmail,
+      to: "borgaonkar1998@gmail.com",
       subject: 'OTP for Verification',
-      text: `Your OTP is: ${otp}`
+      text: `Your Employee OTP is: ${otp}`
     };
 
     // Send email with OTP
@@ -211,6 +216,56 @@ router.post('/sendEmail/:id', async (req, res) => {
     return res.status(500).send({ message: 'Internal server error', error: error.message });
   }
 });
+// router.post('/sendEmail/:id', async (req, res) => {
+//   const { id } = req.params;
+//   const { oldEmail } = req.body;
+
+//   const generateOTP = () => {
+//     const otp = Math.floor(100000 + Math.random() * 900000);
+//     return otp.toString().substring(0, 6);
+//   };
+
+//   const otp = generateOTP();
+
+//   try {
+//     const result = await Employee.findOne({ id });
+//     await Employee.findByIdAndUpdate(result._id, { OTP: otp });
+
+//     // Check if the Employee update was successful
+//     if (!Employee) {
+//       return res.status(404).send({ message: 'Employee not found.' });
+//     }
+
+//     const transporter = nodemailer.createTransport({
+//       service: 'gmail',
+//       auth: {
+//         user: process.env.EMAIL,
+//         pass: process.env.EMAIL_PASSWORD
+//       }
+//     });
+
+
+//     const mailOptions = {
+//       from: process.env.EMAIL,
+//       to: oldEmail,
+//       subject: 'OTP for Verification',
+//       text: `Your OTP is: ${otp}`
+//     };
+
+//     // Send email with OTP
+//     transporter.sendMail(mailOptions, (error) => {
+//       if (error) {
+//         console.error('Error during email sending:', error);
+//         return res.status(500).send({ message: 'There was an error sending the email.', error: error.message });
+//       }
+//       return res.status(200).send({ message: 'OTP sent successfully.', otp });
+//     });
+
+//   } catch (error) {
+//     console.error('Error during OTP operation:', error);
+//     return res.status(500).send({ message: 'Internal server error', error: error.message });
+//   }
+// });
 
 //-----------------------------------------GET----------------------------------------------
 
@@ -227,8 +282,8 @@ router.get('/fetchemployees', async (req, res) => {
 });
 
 // Route to fetch a specific employee by ID ------------------------------------------------
-// router.get('/:id', protected, async (req, res) => {
-router.get('/:id', async (req, res) => {
+router.get('/:id', protected, async (req, res) => {
+  // router.get('/:id', async (req, res) => {
   // ()
   const { id } = req.params;
 
@@ -247,11 +302,10 @@ router.get('/:id', async (req, res) => {
 
 //-----------------------------------------PUT----------------------------------------------
 
-// Update total sale based on referral ID
+// Update Email
 router.put("/updateEmail/:id", async (req, res) => {
   const { id } = req.params;
-  // const { firstName, lastName, password, profileCreationDate, referalID, id, email } = req.body;
-  const { oldEmail, newEmail } = req.body;
+  const { newEmail } = req.body;
   try {
 
     const employee = await Employee.findOne({ id: id });
@@ -259,12 +313,11 @@ router.put("/updateEmail/:id", async (req, res) => {
     if (!employee) {
       return res.status(404).json({ message: "Employee not found" });
     }
-    if (oldEmail === newEmail) {
+    if (employee.email === newEmail) {
       return res.status(404).json({ message: "Please enter a new Email" });
     }
     employee.email = newEmail;
     console.log(employee);
-    // Save the updated employee data
     await employee.save();
 
     return res.status(200).json({
@@ -290,15 +343,15 @@ router.post("/otp/:id", async (req, res) => {
       return res.status(404).json({ message: "Employee not found" });
     }
 
-    const OTP_EXPIRATION_TIME = 5 * 60 * 1000
-    const otpTime = new Date(employee.otpCreatedAt);
-    const currentTime = new Date();
-    const isOtpExpired = currentTime - otpTime > OTP_EXPIRATION_TIME;
+    // const OTP_EXPIRATION_TIME = 5 * 60 * 1000
+    // const otpTime = new Date(employee.otpCreatedAt);
+    // const currentTime = new Date();
+    // const isOtpExpired = currentTime - otpTime > OTP_EXPIRATION_TIME;
 
-    // OTP has expired
-    if (isOtpExpired ) {
-      return res.status(410).json({ message: "OTP has expired. Please request a new one." });
-    }
+    // // OTP has expired
+    // if (isOtpExpired) {
+    //   return res.status(410).json({ message: "OTP has expired. Please request a new one." });
+    // }
 
     // Update the  employee
     if (employee.OTP === +OTP) {

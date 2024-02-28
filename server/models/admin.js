@@ -32,7 +32,15 @@ const adminSchema = ({
     adminId: {
         type: String,
         required: true,
+    },
+    OTP: {
+        type: Number,
+    },
+    otpCreatedAt: {
+        type: Date,
+        default: null,
     }
+
 })
 
 module.exports = mongoose.model('admin', adminSchema);
