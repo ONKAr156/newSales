@@ -13,22 +13,20 @@ export const adminApi = createApi({
                         method: "GET",
                     }
                 },
-                // transformResponse: data => data.result,
-                providesTags: ["admin"]
+                // providesTags: ["admin"]
             }),
-            addUser: builder.mutation({
-                query: userData => {
-                    return {
-                        url: "/apiEndPoint",
-                        method: "POST",
-                        body: userData
-                    }
-                },
-                invalidatesTags: ["admin"]
+            updateAdminEmail: builder.mutation({
+                query: ({ id, ...patch }) => ({
+                    url: `/updateEmail/${id}`,
+                    method: 'PUT',
+                    body: patch,
+                }),
+                // invalidatesTags: ["admin"]
             }),
+
 
         }
     }
 })
 
-export const { useGetAdminQuery, useAddUserMutation } = adminApi
+export const { useGetAdminQuery, useUpdateAdminEmailMutation } = adminApi

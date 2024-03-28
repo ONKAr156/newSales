@@ -1,11 +1,11 @@
 "use client"
+import { useGetAdminQuery } from "@/app/redux/api/AdminApi";
 import { data } from "@/pages/linechart";
 import axios from "axios"
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
-import { MIDDLEWARE_MANIFEST } from "next/dist/shared/lib/constants";
 import Link from "next/link";
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { toast } from 'react-toastify';
 
 
@@ -20,11 +20,15 @@ const Candidates = () => {
     const [page, setPage] = useState(1)
     const [emailSent, setEmailSent] = useState(false);
 
+
     const currentPage = 10
     const indexOfLastCandidate = currentPage * page;
     const indexOfFirstCandidate = indexOfLastCandidate - currentPage;
     const currentItems = candidate.slice(indexOfFirstCandidate, indexOfLastCandidate);
-    // console.log(currentItems);
+
+
+
+
     const handleNextBtn = () => {
         setPage((prev) => (prev < 10 ? prev + 1 : prev));
     };
@@ -167,7 +171,7 @@ const Candidates = () => {
             console.log(error);
         }
     }
-    useEffect(() => {
+    useMemo(() => {
         const fetchData = async () => {
             try {
                 const { data } = await axios.get(`http://localhost:3000/api/candidate`, {

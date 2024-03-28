@@ -3,6 +3,8 @@ import { loginApi } from '../api/loginApi'
 import { adminApi } from '../api/AdminApi'
 import authSlice from '../slice/authSlice'
 import { employeeApi } from '../api/EmployeeApi'
+import adminSlice from '../slice/adminSlice'
+import empSlice from '../slice/empSlice'
 
 export const makeStore = () => {
   return configureStore({
@@ -10,7 +12,9 @@ export const makeStore = () => {
       [loginApi.reducerPath]: loginApi.reducer,
       [adminApi.reducerPath]: adminApi.reducer,
       [employeeApi.reducerPath]: employeeApi.reducer,
-      auth: authSlice
+      auth: authSlice,
+      admin: adminSlice,
+      employee: empSlice
     },
     devTools: true,
     middleware: (getDefaultMiddleware) =>

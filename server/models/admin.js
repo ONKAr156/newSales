@@ -39,7 +39,11 @@ const adminSchema = ({
     otpCreatedAt: {
         type: Date,
         default: null,
-    }
+    },
+    userRole: {
+        type: String,
+        default: 'Admin'
+  }
 
 })
 

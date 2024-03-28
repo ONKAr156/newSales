@@ -3,11 +3,17 @@ const router = express.Router();
 const { protected } = require('../middelwear/protected.js');
 const Candidate = require("../models/candidate");
 const nodemailer = require('nodemailer');
+const upload = require('../middelwear/multer.js');
+const crypto = require('crypto');
 
 //## Get ---------------------------------------------------------------------------
 // All candidates
-// router.get('/', protected, async (req, res) => {
-router.get('/', async (req, res) => {
+
+
+// main Code 
+
+router.get('/', protected, async (req, res) => {
+// router.get('/', async (req, res) => {
   try {
     const candidates = await Candidate.find({});
 
@@ -19,7 +25,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', protected, async (req, res) => {
   const { id } = req.params
   try {
     const candidates = await Candidate.findById(id);
@@ -71,8 +77,6 @@ router.post('/discarded', async (req, res) => {
     return res.status(500).json({ message: "Error fetching Shortlisted candidates", error: error })
   }
 })
-
-
 
 //Covert ==> Shortlisted 
 router.post('/shortlist/:id', async (req, res) => {
@@ -126,7 +130,7 @@ router.post('/discard/:id', async (req, res) => {
   }
 });
 
-// Covert ==> 
+// Covert ==> Pending
 router.post('/pending/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -152,17 +156,12 @@ router.post('/pending/:id', async (req, res) => {
   }
 });
 
-// Send mail to shortlisted candidates
+// Send mail to all shortlisted candidates
 router.post('/sendemail', async (req, res) => {
+  const candidates = await Candidate.find({ status: "shortlisted" });
 
-  const data = await Candidate.find({ status: "shortlisted" })
-  if (!data) {
-    return res.status(400).json({ message: "No Candidates found for sending Mails" })
-  }
-
-  const allEmails = [];
-  for (let i = 0; i < data.length; i++) {
-    allEmails.push(data[i].email);
+  if (!candidates.length) {
+    return res.status(400).json({ message: "No Candidates found for sending emails" });
   }
 
   const transporter = nodemailer.createTransport({
@@ -173,142 +172,63 @@ router.post('/sendemail', async (req, res) => {
     }
   });
 
-
-  const mailOptions = {
-    from: process.env.EMAIL,
-    // to: ["rankob15@gmail.com"],
-    to: allEmails,
-    subject: `Welcome to Bolt IO`,
-    text: `Working ......`
-  };
-
-  console.log(allEmails);
-  transporter.sendMail(mailOptions, (error) => {
-    if (error) {
-      console.error('Error during email sending:', error);
-      return res.status(500).send({ message: 'There was an error sending the email.', error: error.message });
-    }
-    return res.status(200).send({ message: 'Email sent successfully.' });
-  });
-
-})
-
-
-// Single candidate mail
-
-router.post('/sendemail/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const candidate = await Candidate.findById(id);
-
-    // Check if candidate exists and is shortlisted
-    if (!candidate) {
-      return res.status(404).json({ message: 'Candidate not found.' });
-    }
-
-    if (candidate.status !== 'shortlisted') {
-      return res.status(400).json({ message: 'Candidate is not shortlisted.' });
-    }
-
-    if (candidate.status === 'invited') {
-      return res.status(200).json({ message: 'Candidate already invited.' });
-    }
-
-    // Email transport setup
-    const transporter = nodemailer.createTransport({
-      service: 'gmail', // Use your email service of choice
-      auth: {
-        user: process.env.EMAIL,
-        pass: process.env.EMAIL_PASSWORD
-      },
-    });
+  // Helper function to create individual emails with a unique submission link
+  const sendEmailWithUniqueLink = async (candidate) => {
+    const emailHash = candidate.emailHash; // Assume this field is already populated in your Candidate document
+    const submissionLink = `http://localhost:3001/submission/${emailHash}`;
 
     const mailOptions = {
       from: process.env.EMAIL,
-      to: candidate.email,
-      subject: `Welcome to the team, ${candidate.firstName} ${candidate.lastName}!`, 
-      text: `Hello, ${candidate.firstName}!\n\nWe're pleased to inform you that you've been shortlisted for the role. Please find further instructions attached.`,
+      to: candidate.email, // Send to the individual candidate's email
+      subject: `Welcome to Bolt IO`,
+      html: `<p>Please use the link below to submit your resume:</p><p>${submissionLink}</p>` // Insert the unique link
     };
 
-    transporter.sendMail(mailOptions, async (error, info) => {
-      if (error) {
-        console.error('Error during email sending:', error);
-        return res.status(500).json({ 
-          message: 'There was an error sending the email.',
-          error: error.message 
-        });
-      } else {
-        // Update candidate status to 'invited'
-        candidate.status = 'invited';
-        await candidate.save(); // Make sure to handle potential errors here too
+    // Send email
+    return transporter.sendMail(mailOptions);
+  };
 
-        console.log('Email sent: ' + info.response);
-        res.status(200).json({
-          message: 'Email sent successfully! Candidate status updated to invited.',
-          info: info.response
-        });
-      }
-    });
+  // Send emails with unique links
+  const sendEmailPromises = candidates.map(candidate => sendEmailWithUniqueLink(candidate));
 
-  } catch (error) {
-    console.error('Server Error:', error);
-    res.status(500).json({
-      message: 'There was a server error.',
-      error: error.message
+  Promise.all(sendEmailPromises)
+    .then(() => {
+      return res.status(200).json({ message: 'All emails sent successfully.' });
+    })
+    .catch(error => {
+      console.error('Error during email sending:', error);
+      return res.status(500).json({ message: 'There was an error sending some emails.', error: error.message });
     });
-  }
 });
 
 
-// router.post('/sendemail/:id', async (req, res) => {
-//   const { id } = req.params;
 
-//   try {
-//     const candidate = await Candidate.findById(id);
-//     // Check if candidate exists and is shortlisted
-//     if (!candidate) {
-//       return res.status(404).json({ message: 'Candidate not found.' });
-//     }
+// Single candidate shortlisted mail
+router.post('/submission/:emailHash', async (req, res) => {
+  const { emailHash } = req.params;
+  const { email, resumeLink } = req.body;
 
-//     if (candidate.status !== 'shortlisted') {
-//       return res.status(400).json({ message: 'Candidate is not shortlisted.' });
-//     }
+  try {
+    const candidate = await Candidate.findOne({ emailHash });
 
-    
-//     // Email transport setup
-//     const transporter = nodemailer.createTransport({
-//       service: 'gmail', // Use your email service of choice
-//       auth: {
-//         user: process.env.EMAIL,
-//         pass: process.env.EMAIL_PASSWORD
-//       },
-//     });
+    if (!candidate) {
+      res.status(404).json({ message: 'No candidate found with this identifier.' });
+      return;
+    }
 
-//     const mailOptions = {
-//       from: process.env.EMAIL,
-//       to: "borgaonkar1998@gmail.com",
-//       // to: candidate.email,
-//       subject: `Welcome to the team, ${candidate.firstName} ${candidate.lastName}!`, // Candidate's name in the subject
-//       text: `Dear ${candidate.firstName},\n\nWe are excited to welcome you to the team! Your email, ${candidate.email}, has been successfully added to our system and we'll be in touch with the next steps.\n\nBest,\nThe HR Team`
-     
-//     };
+    if (candidate.email !== email) {
+      res.status(400).json({ message: 'The provided email does not match our records.' });
+      return;
+    }
 
-//     transporter.sendMail(mailOptions, function(error, info){
-//       if (error) {
-//         console.error('Error:', error);
-//         return res.status(500).json({ message: 'Error sending email', error: error.message });
-//       } else {
-//         console.log('Email sent: ' + info.response);
-//         console.log(candidate.email);
-//         res.status(200).json({ message: 'Email sent successfully!', info: info.response   });
-//       }
-//     });
+    candidate.resume = resumeLink;
+    await candidate.save();
 
-//   } catch (error) {
-//     console.error('Server Error:', error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
+    res.status(200).json({ message: 'Resume submitted successfully.' });
+  } catch (error) {
+    res.status(500).json({ message: 'An error occurred while processing your submission.', error: error.message });
+  }
+});
+
 
 module.exports = router

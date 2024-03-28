@@ -12,7 +12,8 @@ const employeeSchema = new Schema({
   },
   email: {
     type: String,
-    required: true,
+    unique: true,
+    required: true
   },
   password: {
     type: String,
@@ -41,6 +42,10 @@ const employeeSchema = new Schema({
   otpCreatedAt: {
     type: Date,
     default: null,
+  },
+  userRole: {
+    type: String,
+    default: 'Employee'
   }
 });
 

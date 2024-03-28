@@ -3,9 +3,10 @@ const router = express.Router();
 const nodemailer = require('nodemailer');
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken")
-const { protected } = require('../middelwear/protected.js')
-// const protected = require('../middelwear/protected.js')
+const { validateEmployee } = require("../middelwear/empProtect.js")
+// const { protected } = require('../middelwear/protected.js')
 const Employee = require("../models/employee.js");
+const { io } = require("../socket.js");
 
 //-----------------------------------------post--------------------------------------------------------------
 
@@ -35,7 +36,11 @@ router.post('/login', async (req, res) => {
     }
 
 
-    const token = jwt.sign({ userId: employee.id }, process.env.JWT_KEY, { expiresIn: "1h" })
+    // const token = jwt.sign({ userId: employee.id }, process.env.JWT_KEY, { expiresIn: "1h" })
+    const token = jwt.sign({
+      userId: employee.id,
+      role: employee.userRole,
+    }, process.env.JWT_KEY, { expiresIn: '1h' });
     res.cookie("token", token, {
       httpOnly: true,
       secure: true,
@@ -48,6 +53,7 @@ router.post('/login', async (req, res) => {
         id: employee.id,
         name: employee.name,
         email: employee.email,
+        role: employee.role
       }, token
     });
 
@@ -71,8 +77,6 @@ router.post('/logout', (req, res) => {
     return res.status(400).json({ message: 'No active session' });
   }
 });
-
-
 // Employee registeration -------------------------------------------------------------------
 router.post("/register", async (req, res) => {
 
@@ -270,21 +274,61 @@ router.post('/checkPass/:id', async (req, res) => {
 //-----------------------------------------GET----------------------------------------------
 
 //Get all the employees---------------------------------------------------------------------
+
 router.get('/fetchemployees', async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const skip = (page - 1) * limit;
+
+  // Determine sort field and order
+  const sortField = req.query.sortField || 'id'; // Default sort by 'id'
+  const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1; // Default is ascending
+
+  // Ensure valid sort field is provided
+  const allowedSortFields = ['_id', 'sale']; // Specify allowed fields to sort by
+  const sortOptions = allowedSortFields.includes(sortField)
+    ? { [sortField]: sortOrder }
+    : { _id: sortOrder }; // Default sorting by '_id' if invalid sortField is provided
+
   try {
-    // Fetch all employees from the MongoDB collection
-    const employees = await Employee.find();
-    res.json(employees);
+    const employees = await Employee.find()
+      .sort(sortOptions)
+      .limit(limit)
+      .skip(skip);
+
+    const count = await Employee.countDocuments();
+
+    const totalPages = Math.ceil(count / limit);
+
+    res.json({
+      totalPages,
+      currentPage: page,
+      pageSize: limit,
+      totalItems: count,
+      employees
+    });
   } catch (error) {
     console.error('Error fetching employee data:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Internal server error', error });
   }
 });
+// Main code ⤵
+
+// router.get('/fetchemployees', async (req, res) => {
+//   try {
+//     // Fetch all employees from the MongoDB collection
+//     const employees = await Employee.find();
+//     res.json(employees);
+//   } catch (error) {
+//     console.error('Error fetching employee data:', error);
+//     res.status(500).json({ message: 'Internal server error' });
+//   }
+// });
 
 // Route to fetch a specific employee by ID ------------------------------------------------
-router.get('/:id', protected, async (req, res) => {
-  // router.get('/:id', async (req, res) => {
-  // ()
+// router.get('/:id', protected, async (req, res) => {
+router.get('/:id', validateEmployee, async (req, res) => {
+
   const { id } = req.params;
 
   try {
@@ -319,6 +363,12 @@ router.put("/updateEmail/:id", async (req, res) => {
     employee.email = newEmail;
     console.log(employee);
     await employee.save();
+    io.emit('employeeUpdateResponse', {
+      error: false,
+      message: "Employee Email updated successfully",
+      employee: employee
+    });
+
 
     return res.status(200).json({
       message: "Employee Email updated successfully",

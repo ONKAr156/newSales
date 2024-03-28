@@ -5,7 +5,10 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const admin = require("../models/admin");
 const nodemailer = require('nodemailer');
-const { protected } = require('../middelwear/protected.js');
+// const { protected } = require('../middelwear/protected.js');
+const { validateAdmin } = require("../middelwear/adminProtect.js");
+const { io } = require("../socket.js");
+// const io = require('../server.js')
 
 
 const jwtSecret = "mynameissaurabhratnaparkhi";
@@ -36,7 +39,8 @@ router.get('/fetchadmin', async (req, res) => {
 
 
 // Get single admin
-router.get('/:id', protected, async (req, res) => {
+// router.get('/:id', protected, async (req, res) => {
+router.get('/:id', validateAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const admin = await Admin.findById(id);
@@ -76,9 +80,13 @@ router.post("/login", async (req, res) => {
     }
 
     // Create a JWT
-    const token = jwt.sign({ adminId: admin._id }, process.env.JWT_KEY, {
-      expiresIn: "1h",
-    });
+    // const token = jwt.sign({ adminId: admin._id }, process.env.JWT_KEY, {
+    //   expiresIn: "1h",
+    // });
+    const token = jwt.sign({
+      userId: admin._id,
+      role: admin.userRole,
+    }, process.env.JWT_KEY, { expiresIn: '1h' });
 
     res.cookie("token", token, {
       httpOnly: true,
@@ -122,7 +130,7 @@ router.post("/register", async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
   const newAdmin = new Admin({ firstName, lastName, password: hashedPassword, profileCreationDate, sale, id, adminId, email });
-  
+
   try {
 
     const admin = await Admin.findOne({ firstName, lastName });
@@ -181,11 +189,12 @@ router.post('/checkPass/:id', async (req, res) => {
   };
 
   const otp = generateOTP();
+  const otpCreatedAt = new Date();
 
   try {
     const result = await Admin.findById(id);
 
-    await Admin.findByIdAndUpdate(result._id, { OTP: otp });
+    await Admin.findByIdAndUpdate(result._id, { OTP: otp, otpCreatedAt: otpCreatedAt });
 
     const hashedPassword = await bcrypt.compare(currentPassword, result.password)
     if (!hashedPassword) {
@@ -205,7 +214,7 @@ router.post('/checkPass/:id', async (req, res) => {
       from: process.env.EMAIL,
       to: "borgaonkar1998@gmail.com",
       subject: 'OTP for Verification',
-      text: `Your Employee OTP is: ${otp}`
+      text: `Your Admin OTP is: ${otp}. Note: This is OTP is valid only for 5 Mins`
     };
 
     // Send email with OTP
@@ -227,9 +236,16 @@ router.post("/otp/:id", async (req, res) => {
   const { id } = req.params;
   const { OTP } = req.body;
   try {
-    const admin = await Admin.findOne({ _id: id });
+    const admin = await Admin.findOne({ _id: id, OTP: OTP });
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const currentTime = new Date();
+    const timeDiff = (currentTime - admin.otpCreatedAt) / 1000
+
+    if (timeDiff > 300) {
+      return res.status(410).json({ message: "OTP expired" });
     }
 
     if (admin.OTP === +OTP) {
@@ -273,6 +289,33 @@ router.put("/:id", async (req, res) => {
 });
 
 //Update Admin's Email  Specific
+// router.put("/updateEmail/:id", async (req, res) => {
+//   const { id } = req.params;
+//   const { newEmail } = req.body;
+//   try {
+
+//     const admin = await Admin.findOne({ _id: id });
+
+//     if (!admin) {
+//       return res.status(404).json({ message: "Admin not found" });
+//     }
+//     // current email should'nt be same with new one
+//     if (admin.email === newEmail) {
+//       return res.status(404).json({ message: "Please enter a new email" });
+//     }
+//     admin.email = newEmail;
+//     console.log(admin);
+//     await admin.save();
+
+//     return res.status(200).json({
+//       message: "Admin Email updated successfully",
+//       admin: admin,
+//     });
+//   } catch (error) {
+//     console.error("Error during email update of Admin:", error);
+//     return res.status(500).json({ message: "Internal server error" });
+//   }
+// });
 router.put("/updateEmail/:id", async (req, res) => {
   const { id } = req.params;
   const { newEmail } = req.body;
@@ -290,6 +333,12 @@ router.put("/updateEmail/:id", async (req, res) => {
     admin.email = newEmail;
     console.log(admin);
     await admin.save();
+
+    io.emit('updateResponse', { // This sends the update to all clients, including the sender
+      error: false,
+      message: "Admin Email updated successfully",
+      admin: admin
+    });
 
     return res.status(200).json({
       message: "Admin Email updated successfully",

@@ -50,7 +50,14 @@ const candidateSchema = new mongoose.Schema({
         enum: ['pending', 'shortlisted', 'discarded', 'invited'],
         default: 'pending'
     },
-
+    resume: {
+        type: String,
+    },
+    emailHash: {
+        type: String,
+        required: true,
+        unique: true
+    }
 }, { timestamps: true });
 
 const Candidate = mongoose.model('candidates', candidateSchema);

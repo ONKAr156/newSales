@@ -12,18 +12,20 @@ const { Server } = require('socket.io');
 const cors = require('cors')
 require("dotenv").config();
 const Admin = require("./models/admin.js");
+const Employee = require("./models/employee.js");
+const { app, server } = require("./socket.js");
 
 
-const app = express();
+// const app = express();
 const mongoString = process.env.DATABASE_URL;
 
-const server = createServer(app)
-const io = new Server(server, {
-  cors: {
-    origin: 'http://localhost:3001',
-    credentials: true
-  }
-})
+// const server = createServer(app)
+// const io = new Server(server, {
+//   cors: {
+//     origin: 'http://localhost:3001',
+//     credentials: true
+//   }
+// })
 
 
 app.use(cors({
@@ -65,14 +67,10 @@ app.use('/api/customer', customerRoutes);
 app.use('/api/salestaff', salesStaffRoutes);
 app.use('/api/candidate', candidatesRoutes);
 
+//  SOCKET start 👇
 
-io.on("connection", (socket) => {
-  console.log("Socket user connected");
-  console.log("ID", socket.id);
 
-  socket.on("message", (data) => {
-    console.log(data);
-    io.emit("recive-message", [data])
-  })
 
-})
+
+
+// module.exports = io 

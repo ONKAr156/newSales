@@ -6,39 +6,29 @@ export const employeeApi = createApi({
     tagTypes: ["employee"],
     endpoints: (builder) => {
         return {
-            getemployee: builder.query({
+            getEmployee: builder.query({
                 query: (id) => {
                     return {
                         url: `/${id}`,
                         method: "GET",
                     }
                 },
-                // transformResponse: data => data.result,
-                providesTags: ["employee"]
+                // providesTags: ["employee"]
             }),
-            fetchEmp: builder.query({
-                query: (id) => {
-                    return {
-                        url: "/fetchemployees",
-                        method: "GET",
-                    }
-                },
-                // transformResponse: data => data.result,
-                providesTags: ["employee"]
+            updateEmployeeEmail: builder.mutation({
+                query: ({ id, ...patch }) => ({
+                    url: `/updateEmail/${id}`,
+                    method: 'PUT',
+                    body: patch,
+                }),
+                // invalidatesTags: ["employee"]
             }),
-            addUser: builder.mutation({
-                query: userData => {
-                    return {
-                        url: "/apiEndPoint",
-                        method: "POST",
-                        body: userData
-                    }
-                },
-                invalidatesTags: ["employee"]
-            }),
+
+
 
         }
     }
 })
 
-export const { useGetemployeeQuery,useFetchEmpQuery ,useAddUserMutation } = employeeApi
+export const { useGetEmployeeQuery, useUpdateEmployeeEmailMutation } = employeeApi
+

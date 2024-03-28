@@ -3,12 +3,19 @@ import { data, options } from '@/pages/linechart'
 import axios from 'axios'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+import Chat from "../../../components/Chat"
 import Head from 'next/head';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Line } from 'react-chartjs-2'
 import { toast } from 'react-toastify';
+import Chart from '../../../components/Chat';
+import { useGetEmployeeQuery, useUpdateEmployeeEmailMutation } from '@/app/redux/api/EmployeeApi';
+import EditEmail from '@/components/employee_edit/EditEmail';
+import EditPassword from '@/components/employee_edit/EditPassword';
+import { io } from 'socket.io-client';
+import { useSelector } from 'react-redux';
 
 //Home Page
 const page = ({ params }) => {
@@ -16,86 +23,92 @@ const page = ({ params }) => {
   const [active, setActive] = useState("Email")
   const [employees, setEmployees] = useState([])
   const [customers, setCustomers] = useState([])
+  const [custError, setCustError] = useState()
   const [currentPage, setCurrentPage] = useState(1);
   const [admin, setAdmin] = useState("true")
+  const [backData, setBackData] = useState([])
   const [logout, setLogout] = useState()
   const [validate, setValidate] = useState("true")
+  const [salesData, setSalesData] = useState([]);
   const [edit, setEdit] = useState({
     email: "",
     password: "",
   })
-  // Admin cannot edit Employee's data as a prop  is send here ⤵
   const search = useSearchParams()
-  // const customers = [
-  //   {
-  //     id: 1,
-  //     name: 'John Doe',
-  //     email: 'john@example.com',
-  //     phone: '123-456-7890',
-  //     product: 'Product A',
-  //     amount: 1000,
-  //     date: '2023-08-01',
-  //   },
-  //   {
-  //     id: 2,
-  //     name: 'John Doe',
-  //     email: 'john@example.com',
-  //     phone: '123-456-7890',
-  //     product: 'Product B',
-  //     amount: 100,
-  //     date: '2023-07-01',
-  //   },
-  //   {
-  //     id: 3,
-  //     name: 'John Doe',
-  //     email: 'john@example.com',
-  //     phone: '123-456-7890',
-  //     product: 'Product A',
-  //     amount: 200,
-  //     date: '2023-07-01',
-  //   },
-  //   {
-  //     id: 4,
-  //     name: 'John Doe',
-  //     email: 'john@example.com',
-  //     phone: '123-456-7890',
-  //     product: 'Product C',
-  //     amount: 5000,
-  //     date: '2023-08-01',
-  //   },
-  //   {
-  //     id: 5,
-  //     name: 'John Doe',
-  //     email: 'john@example.com',
-  //     phone: '123-456-7890',
-  //     product: 'Product A',
-  //     amount: 1000,
-  //     date: '2023-06-01',
-  //   }
-  // ];
+  const { data, error, isFetching, status, isError } = useGetEmployeeQuery(params.id)
+  const { empData: edata } = useSelector(state => state.employee)
+  const [updateEmployeeEmail] = useUpdateEmployeeEmailMutation();
 
   const formatDate = (customer) => {
     const date = new Date(customer);
     // Format the date to YYYY-MM-DD
     return date.toISOString().split('T')[0];
   };
+
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
+  const currentDay = new Date().getDate();
 
-  const filteredCustomers = filter === 'all' ? customers : filter === 'thisMonth'
-    ? customers.filter(
-      (customer) => new Date(customer.createdAt).getFullYear() === currentYear &&
+  const filteredCustomers = filter === 'all' ? customers :
+    filter === 'thisMonth' ? customers.filter(
+      customer => new Date(customer.createdAt).getFullYear() === currentYear &&
         new Date(customer.createdAt).getMonth() === currentMonth
-    )
-    : customers.filter((customer) =>
-      customer.products.some(product => product.name === filter)
-    );
+    ) :
+      filter === 'lastMonth' ? customers.filter(
+        customer => {
+          const createdAt = new Date(customer.createdAt);
+          const createdAtYear = createdAt.getFullYear();
+          const createdAtMonth = createdAt.getMonth();
+          return (
+            (createdAtYear === currentYear && createdAtMonth === currentMonth - 1) ||
+            (createdAtYear === currentYear - 1 && createdAtMonth === 11)
+          );
+        }
+      ) :
+        filter === 'quarterly' ? customers.filter(
+          customer => {
+            const createdAt = new Date(customer.createdAt);
+            const createdAtYear = createdAt.getFullYear();
+            const createdAtMonth = createdAt.getMonth();
+            const quarter = Math.floor(createdAtMonth / 3) + 1;
+            const currentQuarter = Math.floor(currentMonth / 3) + 1;
+            return (
+              (createdAtYear === currentYear && quarter === currentQuarter) ||
+              (createdAtYear === currentYear - 1 && currentQuarter === 1 && quarter === 4)
+            );
+          }
+        ) :
+          filter === 'semiAnnually' ? customers.filter(
+            customer => {
+              const createdAt = new Date(customer.createdAt);
+              const createdAtYear = createdAt.getFullYear();
+              const createdAtMonth = createdAt.getMonth();
+              const halfYear = createdAtMonth < 6 ? 1 : 2; // 1 for first half, 2 for second half
+              const currentHalfYear = currentMonth < 6 ? 1 : 2;
+              return (
+                (createdAtYear === currentYear && halfYear === currentHalfYear) ||
+                (createdAtYear === currentYear - 1 && currentHalfYear === 1 && halfYear === 2)
+              );
+            }
+          ) :
+            filter === 'annually' ? customers.filter(
+              customer => new Date(customer.createdAt).getFullYear() === currentYear
+            ) :
+              customers.filter(
+                customer => customer.products.some(product => product.name === filter)
+              );
+
   const filterOptions = [
     { value: 'all', label: 'All' },
     { value: 'thisMonth', label: 'This Month' },
+    { value: 'lastMonth', label: 'Last Month' },
+    { value: 'quarterly', label: 'Quarterly' },
+    { value: 'semiAnnually', label: 'Semi-Annually' },
+    { value: 'annually', label: 'Annually' },
     { value: 'Product A', label: 'Product A' },
     { value: 'Product B', label: 'Product B' },
     { value: 'Product C', label: 'Product C' },
+    { value: 'Product D', label: 'Product D' },
   ];
 
   const customerPerPage = 3
@@ -110,10 +123,6 @@ const page = ({ params }) => {
   const handlePreviouBtn = () => {
     setCurrentPage((prev) => (prev > 1 ? prev - 1 : prev));
   };
-
-
-
-
 
 
   const firstEmployee = employees[0];
@@ -134,28 +143,35 @@ const page = ({ params }) => {
     }
   };
 
-  // Employee Fetch
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { data } = await axios.get(`http://localhost:3000/api/employee/${params.id}`, {
-          withCredentials: true
-        });
-        setEmployees([data]);
-        toast.success('Welcome'); // Handle success
-        // If a 401 is returned, redirect to the login page
-      } catch (error) {
-        if (error.response && error.response.status === 401) {
-          router.push('/login');
-        } else {
-          console.error('Error fetching employee data:', error);
-          toast.error('Failed to fetch data'); // Handle general error
-        }
-      }
-    };
+  // --------------------------------------------------------------------------
 
-    fetchData();
-  }, [params.id])
+  const socket = useMemo(() => io("http://localhost:3000"), [])
+  const empId = params.id;
+  const fetchEmployeeData = (id) => {
+    socket.emit('getEmp', id);
+  };
+
+  useEffect(() => {
+    socket.on('empResponse', (response) => {
+      if (response.error) {
+        toast.error(`Error: ${response.message}`);
+        console.log(response.error);
+      } else {
+        toast.success('Welcome ');
+        setBackData([response.data]);
+      }
+    });
+
+    if (empId) {
+      fetchEmployeeData(empId);
+    }
+
+    return () => {
+      socket.off('adminResponse');
+    };
+  }, [empId, updateEmployeeEmail]);
+
+
 
   // Check if the admin is viewing
   useEffect(() => {
@@ -170,28 +186,59 @@ const page = ({ params }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data } = await axios.get(`http://localhost:3000/api/customer`, {
+        const { data } = await axios.get(`http://localhost:3000/api/customer/${params.id}`, {
           withCredentials: true
         });
         setCustomers(data)
         // console.log(data);
       } catch (error) {
         if (error.response && error.response.status === 401) {
-          router.push('/login');
+          setCustError(error.response.data.message)
+          console.log(error);
         } else {
           console.error('Error fetching employee data:', error);
-          toast.error('Failed to fetch data'); // Handle general error
+          toast.error('Failed to fetch data')
         }
       }
     };
 
     fetchData();
-  }, [params.id])
+  }, [data])
 
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June', 'July',
+    'August', 'September', 'October', 'November', 'December'
+  ];
+
+  //  Customer data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get(`http://localhost:3000/api/customer/employee/total-amount-per-month/${params.id}`);
+        setSalesData(response.data);
+        console.log(salesData);
+      } catch (error) {
+        console.error('Error fetching sales data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+
+  useEffect(() => {
+    if (isError && (error.status === 401 || error.status === 403)) {
+      router.replace('/login');
+    }
+  }, [isError, error, router]);
+
+  if (isFetching) {
+    return <div>Loading...</div>
+  }
+  const totalSales = salesData.reduce((acc, cur) => acc + cur.totalAmount, 0);
 
   return <>
     <Head>
-      <title>Dealine page 12566</title>
       <link rel="icon" type="image/png" sizes="16x6" href="/1.png" />
     </Head>
     <div>
@@ -202,40 +249,41 @@ const page = ({ params }) => {
             <div className='h-[18rem] w-full flex flex-col justify-center  py-2  md:py-5 px-2 md:px-5  text-sm  md:text-base shadow-xl bg-slate-50  text-black rounded-xl gap-6'>
 
               {
-                employees && employees.map((item) => <div className='flex flex-col gap-2' key={item.id}>
+                edata && <div className='flex flex-col gap-2' key={edata.id}>
 
                   <div>
                     <div className=' flex justify-between'>
                       <div>
                         <span className='md:text-lg font-semibold mx-2'>Name:</span>
-                        <span className='md:text-lg'>{item.firstName} {item.lastName}</span>
+                        <span className='md:text-lg'>{edata.firstName} {edata.lastName}</span>
                       </div>
                       <div>
                         <span className='md:text-lg font-semibold mx-2'>ID:</span>
-                        <span className='md:text-lg'>{item.id}</span>
+                        <span className='md:text-lg'>{edata.id}</span>
                       </div>
                     </div>
                   </div>
                   <div>
                     <div >
                       <span className='md:text-lg font-semibold mx-2'>Referal ID:</span>
-                      <span className='md:text-lg'>{item.referalID}</span>
+                      <span className='md:text-lg'>{edata.referalID}</span>
                     </div>
                     <div>
                       <span className='md:text-lg font-semibold mx-2'>Email:</span>
-                      <span className='md:text-lg '>{item.email}</span>
+                      <span className='md:text-lg '>{edata.email}</span>
                     </div>
                   </div>
                   <div>
                     <div className=''>
                       <span className='md:text-lg font-semibold mx-2'>Date of joining:</span>
-                      <span className='md:text-lg'>{item.profileCreationDate}</span>
+                      <span className='md:text-lg'>{edata.profileCreationDate}</span>
                     </div>
                   </div>
                   <div>
                     <div className=''>
                       <span className='md:text-lg font-semibold mx-2'>Sales:</span>
-                      <span className='md:text-lg'>₹{item.sale}</span>
+                      {/* <span className='md:text-lg'>₹{data.sale}</span> */}
+                      <span className='md:text-lg'>₹{totalSales}</span>
                     </div>
                   </div>
                   <div>
@@ -254,24 +302,24 @@ const page = ({ params }) => {
                          text-slate-50'>Logout</button>
                     }
                   </div>
-                </div>)
+                </div>
 
               }
             </div>
           </div>
 
           <div className='col-span-12 md:col-span-6   h-[20rem]  bg-slate-50 p-2 flex justify-center rounded-xl shadow-lg '>
-            <Line options={options} data={data} />
+            <Chart />
           </div>
 
           <div className='col-span-12  py-6 md:py-4  '>
             <div className='col-span-12  py-6 md:py-4  '>
-              <div className="bg-white shadow-md rounded p-4">
+              {custError ? <p className='text-center font-bold p-6 bg-white rounded-lg m-2'>{custError}</p> : <div className="bg-white shadow-md rounded p-4">
                 <div className='flex justify-between items-center '>
                   <h2 className="text-xl font-semibold mb-2">Customer List</h2>
-                  <p
+                  {admin ? "" : <p
                     data-bs-toggle="modal" data-bs-target="#customer"
-                    className='bg-blue-600 rounded-sm sm:rounded-none w-[2rem] text-center sm:text-base focus:bg-black text-white cursor-pointer'>+</p>
+                    className='bg-blue-600 rounded-sm sm:rounded-none w-[2rem] text-center sm:text-base focus:bg-black text-white cursor-pointer'>+</p>}
                 </div>
                 <div className="mb-4">
                   <label htmlFor="filter" className="block font-medium text-gray-700">
@@ -294,6 +342,7 @@ const page = ({ params }) => {
 
                 {/* customer table ---------------------------------------------------------------- */}
                 <div className="overflow-x-auto">
+
                   <table className="w-full border border-collapse">
                     <thead>
                       <tr>
@@ -329,18 +378,16 @@ const page = ({ params }) => {
                       ))}
                     </tbody>
                   </table>
+
                 </div>
                 <div className='text-center mt-10 mb-2 shadow-gray-300 w-full flex justify-center items-center gap-6'>
                   <button onClick={handlePreviouBtn} disabled={currentPage === 1} className='text-white bg-blue-600 px-4 '>Prev</button>
                   <button onClick={handleNextBtn} disabled={currentPage === 10} className='text-white bg-blue-600 px-4 '>Next</button>
                 </div>
-              </div>
-
-
+              </div>}
             </div>
 
-
-
+            {/* Monthly sales */}
             <h1 className="text-2xl font-semibold mb-4 ">Monthly Sales</h1>
             <table className="w-full border-collapse border border-gray-300">
               <thead>
@@ -350,16 +397,18 @@ const page = ({ params }) => {
                 </tr>
               </thead>
               <tbody>
-                {data.labels.map((label, index) => (
-                  <tr key={index}>
-                    <td className="border border-gray-300 p-2">{label}</td>
-                    <td className="border border-gray-300 p-2">{data.datasets[0].data[index]}</td>
+                {salesData.map((item, index) => (
+                  <tr className='bg-slate-100 hover:bg-gray-300 hover:text-black cursor-pointer' key={index}>
+                    {/* <td>{`${item._id.month}`}</td> */}
+                    <td className='p-2 border  '>{months[item._id.month - 1]}</td>
+                    <td className='p-2 border    '>₹{item.totalAmount}</td>
                   </tr>
                 ))}
               </tbody>
+
             </table>
           </div>
-
+          {/* summary */}
           <div className='col-span-12 px-4 md:px-10 py-6 md:py-4 '>
             <div className="bg-white shadow-md rounded-xl p-4 mb-4">
               <h2 className="text-xl font-semibold mb-2">Summary</h2>
@@ -408,11 +457,8 @@ const page = ({ params }) => {
             </div>
 
             <div>
-              {/* {
-                active == "Email" ? <EditEmail params={params} /> : <EditPassword params={params} />
-              } */}
               {
-                active == "Email" ? <EditEmail params={params} /> : <EditPassword params={params} />
+                active == "Email" ? <EditEmail params={params} socket={socket} /> : <EditPassword params={params} />
               }
             </div>
           </div>
@@ -433,362 +479,118 @@ const page = ({ params }) => {
   </>
 }
 
-//  EDIT EMAIL------------------------------------------------------------------------
-const EditEmail = ({ params }) => {
-  const [emailData, setEmailData] = useState({
-    currentPassword: "",
-    newEmail: "",
-    OTP: "",
-  })
-  const [status, setStatus] = useState()
-  const [errorData, setErrorData] = useState()
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setEmailData({ ...emailData, [name]: value });
-
-  };
-  const handelSubmit = async e => {
-    e.preventDefault()
-    console.log(emailData);
-    try {
-      if (status === undefined) {
-        const response = await axios.post(`http://localhost:3000/api/employee/checkPass/${(+(params.id))}`, emailData)
-        setStatus(200)
-        toast.success("OTP Sent successfully")
-        console.log('200 abjfbajbfja')
-
-      } else if (status === 200) {
-        const response = await axios.post(`http://localhost:3000/api/employee/otp/${(+(params.id))}`, emailData)
-        console.log('OTP matched successfully')
-        setStatus(201)
-
-      } else if (status === 201) {
-        const response = await axios.put(`http://localhost:3000/api/employee/updateEmail/${(+(params.id))}`, emailData)
-        console.log('Completed finally')
-        setStatus(undefined)
-        toast.success("Email Updated successfully")
-      }
-
-    } catch (error) {
-      if (error.response) {
-        // setErrorData(error.response.data.message);
-        setErrorData(error.response.data.message);
-      } else {
-        setErrorData('An error occurred during update Email');
-      }
-      setTimeout(() => {
-        setErrorData("");
-      }, 2500)
-    }
-    setEmailData({
-      currentPassword: "",
-      newEmail: "",
-      OTP: "",
-    })
-
-  }
-
-  return <>
-    <div className="h-full flex flex-col justify-between">
-      {/* <pre>{JSON.stringify(status, null, 2)}</pre> */}
-      <form action="" onSubmit={handelSubmit}>
-        <div className=" p-3">
-          {
-            status ? "" : <div className="my-2">
-              <label className="md: text-lg" htmlFor="currentPassword">Enter Current Password<span className="text-red-600">*</span></label>
-              <input
-                name="currentPassword"
-                value={String(emailData.currentPassword)}
-                onChange={handleChange}
-                className="w-full my-2 border p-2 rounded-md" type="text" placeholder="Enter current Password" id="currentPassword" required />
-              <p>{errorData}</p>
-            </div>
-          }
-          {
-            status === 200 ?
-              <div className="my-2">
-                <label className="md: text-lg" htmlFor="OTP">Enter OTP<span className="text-red-600">*</span></label>
-                <input
-                  name="OTP"
-                  value={String(emailData.OTP)}
-                  onChange={handleChange}
-                  className="w-full my-2 border p-2 rounded-md" type="number" placeholder="Enter your OTP" id="OTP" required />
-                <p>{errorData}</p>
-              </div> : ''
-          }
-          {
-            status === 201 ?
-              <div className="my-2">
-                <label className="md: text-lg" htmlFor="newEmail">Enter newEmail<span className="text-red-600">*</span></label>
-                <input
-                  name="newEmail"
-                  value={String(emailData.newEmail)}
-                  onChange={handleChange}
-                  className="w-full my-2 border p-2 rounded-md" type="email" placeholder="Enter your new Email" id="newEmail" required />
-                <p>{errorData}</p>
-              </div> : ''
-          }
-
-        </div>
-        <div className="my-2 text-end ">
-
-          {
-            status ? "" : <button type="submit" className=" bg-blue-600 text-slate-50 px-3 md:px-5 py-1 md:py-2">Check</button>
-          }
-          {
-            status === 200 ? <button type="submit" className=" bg-blue-600 text-slate-50 px-3 md:px-5 py-1 md:py-2" >Verify OTP</button> : status === 201
-              ?
-              <button
-                type="submit"
-                className=" bg-blue-600 text-slate-50 px-3 md:px-5 py-1 md:py-2"
-                data-bs-dismiss={status === 201 ? `modal` : ""}
-              >submit</button> : ""
-          }
-
-        </div>
-      </form>
-    </div>
-
-  </>
-}
-
-// Edit Password----------------------------------------------------------------------
-const EditPassword = ({ params }) => {
-  const x = useSearchParams()
-  const [passData, setPassData] = useState({
-    currentPassword: "",
-    confirmPassword: "",
-    newPassword: "",
-  })
-  const [status, setStatus] = useState()
-  const [errorData, setErrorData] = useState()
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setPassData({ ...passData, [name]: value });
-
-  };
-
-  const handlePassSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await axios.post(`http://localhost:3000/api/employee/cpass/${(+(params.id))}`, passData)
-      setStatus(response.data.message)
-
-      if (status == "true") {
-        const response = await axios.put(`http://localhost:3000/api/employee/updateUser/${(+(params.id))}`, passData)
-        console.log(response.data);
-        setStatus(response.data.message)
-        setStatus(undefined)
-
-
-      }
-
-    } catch (error) {
-      console.error('Error while posting  current password', error);
-      setErrorData(error.response.data.message)
-      setTimeout(() => {
-        setErrorData("");
-      }, 2500)
-    }
-    setPassData({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    })
-  };
-
-
-
-  return <>
-    <div className="h-full flex flex-col justify-between">
-      {/* <pre>{JSON.stringify(passData, null, 2)}</pre> */}
-      <form onSubmit={(e) => handlePassSubmit(e)}>
-        <div className=" p-3">
-
-
-          <div className="my-2">
-            <label className="md: text-lg" htmlFor="currPass">Current Password<span className="text-red-600">*</span></label>
-            <input
-              name="currentPassword"
-              value={String(passData.currentPassword)}
-              onChange={handleChange}
-              className="w-full my-2 border p-2 rounded-md" type="password" placeholder="Enter current Password" id="currPass" />
-
-          </div>
-
-          {
-            status ? <div>
-
-              <div className="my-2">
-                <label className="md: text-lg" htmlFor="newPass">New Password<span className="text-red-600">*</span></label>
-                <input
-                  name="newPassword"
-                  value={String(passData.newPassword)}
-                  onChange={handleChange}
-                  className="w-full my-2 border p-2 rounded-md" type="text" placeholder="Enter new Password" id="newPass" required />
-              </div>
-              <div className="my-2">
-                <label className="md: text-lg" htmlFor="confirmPassword">Confirm Password<span className="text-red-600">*</span></label>
-                <input
-                  name="confirmPassword"
-                  value={String(passData.confirmPassword)}
-                  onChange={handleChange}
-                  className="w-full my-2 border p-2 rounded-md" type="password" placeholder="Enter new Password" id="confirmPassword" required />
-              </div>
-
-            </div> : ""
-          }
-
-        </div>
-        <div className="my-2 text-end ">
-          {
-            status ? "" : <button type="submit" className=" bg-blue-600 text-slate-50 px-3 md:px-5 py-1 md:py-2">check</button>
-          }
-          {
-            status ? <button type="submit" className=" bg-blue-600 text-slate-50 px-3 md:px-5 py-1 md:py-2" data-bs-dismiss="modal">Submit</button> : ""
-          }
-
-        </div>
-      </form>
-      <p>{errorData}</p>
-    </div>
-
-  </>
-}
-
 const CustomerModel = () => {
-  const [data, setData] = useState({})
-  const [productSelects, setProductSelects] = useState([{ id: 0 }]);
-  const [products, setProducts] = useState([]);
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    date: '',
+    products: [{ name: '', quantity: 1, amount: 10 }],
+    referralEmployee: ''
+  });
 
-  const addSelectBox = () => {
-    setProductSelects([...productSelects, { id: productSelects.length }]);
+  const handleInputChange = (event, index) => {
+    const { name, value } = event.target;
+    if (name.startsWith('product')) {
+      const products = [...formData.products];
+      const propertyName = name.split('-')[1];
+      products[index][propertyName] = value;
+      setFormData({ ...formData, products });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
-  const deleteSelectBox = (selectId) => {
-    setProductSelects(productSelects.filter(select => select.id !== selectId));
+  const handleAddProduct = () => {
+    setFormData({
+      ...formData,
+      products: [...formData.products, { name: '', quantity: 1, amount: 10 }]
+    });
   };
 
+  const handleRemoveProduct = (index) => {
+    const products = [...formData.products];
+    products.splice(index, 1);
+    setFormData({ ...formData, products });
+  };
 
-  const handleData = async (e) => {
-    e.preventDefault()
-
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    console.log(formData);
 
     try {
-      const result = await axios.post("http://localhost:3000/api/customer/register", data)
+      const result = await axios.post('http://localhost:3000/api/customer/register', formData)
       console.log(result.status);
     } catch (error) {
       console.log(error);
     }
 
-    console.log(data);
-  }
+  };
 
-
-  const updateData = (e) => {
-    const { name, value } = event.target;
-    setData(prevData => ({
-      ...prevData,
-      [name]: value
-    }));
-  }
-
-  // Function to update state for the product selections
-  const updateProductSelects = (event, index) => {
-    const newValue = event.target.value;
-
-    const newProducts = [...products];
-
-    newProducts[index] = newValue;
-
-    setProducts(newProducts);
-  }
-
-  return <>
-    <form className="container" onSubmit={handleData}>
-      <div className="modal-content">
-        <div className="modal-header">
-          <h5 className="modal-title" id="exampleModalLabel">Modal title</h5>
-          <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close">
-          </button>
-        </div>
-
-        <div className="modal-body">
-          <pre>{JSON.stringify(data, null, 2)}</pre>
-          <div className="form-group">
-            <label htmlFor="firstName">First Name:</label>
-            <input name='firstName' value={data.firstName} onChange={updateData} type="text" className="form-control" id="firstName" required />
+  return (
+    <>
+      <form onSubmit={handleSubmit}>
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title" id="exampleModalLabel">Customer Information</h5>
+            <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close">
+            </button>
           </div>
-
-          <div className="form-group">
-            <label htmlFor="lastName">Last Name:</label>
-            <input name='lastName' value={data.lastName} onChange={updateData} type="text" className="form-control" id="lastName" required />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="email">Email:</label>
-            <input name='email' value={data.email} onChange={updateData} type="email" className="form-control" id="email" required />
-          </div>
-          <div className="form-group">
-            <label htmlFor="phone">phone:</label>
-            <input name='phone' value={data.phone} onChange={updateData} type="tel" className="form-control" id="phone" required />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="date">Date:</label>
-            <input name='date' value={data.date} onChange={updateData} type="date" className="form-control" id="date" required />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="referralEmployee">Referral:</label>
-            <input name='referralEmployee' value={data.referralEmployee} onChange={updateData} type="text" className="form-control" id="referralEmployee" required />
-          </div>
-
-
-
-          <div className="form-group product-group">
-            <label htmlFor="product0">Product:</label>
-            <div>
-              {productSelects.map((select, index) => (
-                <div className="input-group mb-3" key={select.id}>
-                  <select id='products' name="products" className="form-control" onChange={updateData}>
-                    <option value='Product A'>Product A</option>
-                    <option value='Product B'>Product B</option>
-                    <option value='Product C'>Product C</option>
-                    <option value='Product D'>Product D</option>
+          <div className="modal-body">
+            <div className="mb-3">
+              <label className="form-label">First Name:</label>
+              <input className='form-control' type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Last Name:</label>
+              <input className='form-control' type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Email:</label>
+              <input className='form-control' type="email" name="email" value={formData.email} onChange={handleInputChange} />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Phone:</label>
+              <input className='form-control' type="tel" name="phone" value={formData.phone} onChange={handleInputChange} />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Date:</label>
+              <input className='form-control' type="date" name="date" value={formData.date} onChange={handleInputChange} />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Products:</label>
+              {formData.products.map((product, index) => (
+                <div key={index} className="border p-3 mb-3">
+                  <select name={`product-name-${index}`} value={product.name} onChange={(e) => handleInputChange(e, index)} className="form-select mb-1" required>
+                    <option disabled value="">Select your Product</option>
+                    <option value="Product A">Product A</option>
+                    <option value="Product B">Product B</option>
+                    <option value="Product C">Product C</option>
+                    <option value="Product D">Product D</option>
                   </select>
-
-                  {/* {productSelects.length !== 1 && (
-                    <div className="input-group-append">
-                      <button className="btn btn-outline-danger" type="button" onClick={() => deleteSelectBox(select.id)}>
-                        Delete
-                      </button>
-                    </div>
-                  )} */}
-
-                  {/* {index === productSelects.length - 1 && (
-                    <div className="input-group-append">
-                      <button className="btn btn-outline-secondary" type="button" onClick={addSelectBox}>
-                        Add
-                      </button>
-                    </div>
-                  )} */}
+                  <input type="number" name={`product-quantity-${index}`} value={product.quantity} min="1" onChange={(e) => handleInputChange(e, index)} className="form-control mb-1" />
+                  <input type="number" name={`product-amount-${index}`} value={product.amount} min="0" onChange={(e) => handleInputChange(e, index)} className="form-control mb-1" />
+                  {index !== 0 && <button type="button" onClick={() => handleRemoveProduct(index)} className="btn btn-danger mb-1">Remove Product</button>}
                 </div>
               ))}
+              <button type="button" onClick={handleAddProduct} className="btn btn-primary">Add Product</button>
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Referral Employee:</label>
+              <input type="text" name="referralEmployee" value={formData.referralEmployee} onChange={handleInputChange} className="form-control" />
             </div>
           </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="submit" className="btn btn-primary" data-bs-dismiss="modal">Save changes</button>
+          </div>
         </div>
+      </form>
+    </>
+  );
+};
 
-        <div className="modal-footer">
-          <button type="button" className="bg-slate-600 text-white py-2 px-4" data-bs-dismiss="modal">Close</button>
-          <button type="submit" className="bg-blue-600 text-white py-2 px-4" data-bs-dismiss="modal" >Save changes</button>
-        </div>
-      </div>
-    </form>
 
-  </>
-}
 
 export default page

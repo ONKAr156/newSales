@@ -1,47 +1,81 @@
-import { useFetchEmpQuery } from '@/app/redux/api/EmployeeApi';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import axios from 'axios';
 
-const Pagination = () => {
+const EmployeesList = () => {
     const [employees, setEmployees] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [sortKey, setSortKey] = useState('id');
-    const [sortOrder, setSortOrder] = useState('asc');
-    const { data } = useFetchEmpQuery()
+    const [totalPages, setTotalPages] = useState(0);
+    const [customer, setCustomer] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'asc' });
+    const limit = 10; // Number of items you want per page
 
-    const employeesPerPage = 10
+    useEffect(() => {
+        setLoading(true);
+        const fetchEmployees = async () => {
+            const { key, direction } = sortConfig;
+            const sortField = key === 'id' ? '_id' : (key === 'totalSale' ? 'sale' : key); // Assume 'id' refers to '_id' in MongoDB
+            try {
+                const response = await axios.get(`http://localhost:3000/api/employee/fetchemployees`, {
+                    params: {
+                        page: currentPage,
+                        limit: 10,
+                        sortField,
+                        sortOrder: direction
+                    }
+                });
+                setEmployees(response.data.employees);
+                setTotalPages(response.data.totalPages);
+            } catch (error) {
+                console.error('Error fetching employees:', error);
+            }
+            setLoading(false);
+        };
+
+        fetchEmployees();
+    }, [currentPage, sortConfig]);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true)
+            try {
+                const response = await fetch(`http://localhost:3000/api/customer/`);
+                const data = await response.json();
+                setCustomer(data);
+            } catch (error) {
+                console.error('Error fetching Customer data:', error);
+            }
+            setLoading(false);
+        };
+
+        fetchData();
+    }, []);
+
+
+
+
+
+
+
+    const handlePrevious = () => {
+        if (currentPage > 1) {
+            setCurrentPage(prev => prev - 1);
+        }
+    };
+
+    const handleNext = () => {
+        if (currentPage < totalPages) {
+            setCurrentPage(prev => prev + 1);
+        }
+    };
+
 
     const handleSort = (key) => {
-        if (sortKey === key) {
-            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortKey(key);
-            setSortOrder('asc');
-        }
-    };
-
-    const sortedEmployees = [...employees].sort((a, b) => {
-        const aValue = sortKey === 'totalSale' ? a.totalSale : a.id;
-        const bValue = sortKey === 'totalSale' ? b.totalSale : b.id;
-
-        if (sortOrder === 'asc') {
-            return aValue - bValue;
-        } else {
-            return bValue - aValue;
-        }
-    });
-
-    //Employees to display
-    const indexOfLastEmp = currentPage * employeesPerPage;
-    const indexOfFirstEmp = indexOfLastEmp - employeesPerPage;
-    const currentItems = sortedEmployees.slice(indexOfFirstEmp, indexOfLastEmp);
-
-    const handleNextBtn = () => {
-        setCurrentPage((prev) => (prev < 10 ? prev + 1 : prev));
-    };
-
-    const handlePreviouBtn = () => {
-        setCurrentPage((prev) => (prev > 1 ? prev - 1 : prev));
+        setSortConfig((prevSortConfig) => ({
+            key,
+            direction: prevSortConfig.direction === 'asc' && prevSortConfig.key === key ? 'desc' : 'asc'
+        }));
     };
 
 
@@ -49,20 +83,9 @@ const Pagination = () => {
     const totalEmployees = employees.length;
     const totalCustomers = employees.reduce((total, employee) => total + employee.totalCustomers, 0);
 
-    // Fetching employees data
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const response = await fetch(`http://localhost:3000/api/employee/fetchemployees`);
-                const data = await response.json();
-                setEmployees(data);
-            } catch (error) {
-                console.error('Error fetching employee data:', error);
-            }
-        };
-
-        fetchData();
-    }, []);
+    if (loading) {
+        return <div>Loading...</div>; // You can replace this with any loading spinner or animation you prefer
+    }
     return (
         <>
             <div className="bg-slate-100 shadow-md  p-4 mb-4 mt-2 rounded-lg">
@@ -78,7 +101,7 @@ const Pagination = () => {
                     </div>
                     <div className="col-span-12 md:col-span-4  bg-purple-200 p-4 rounded">
                         <p className="text-lg font-semibold mb-1">Total Customers</p>
-                        <p>{totalCustomers}</p>
+                        <p>{customer.length}</p>
                     </div>
                 </div>
             </div>
@@ -117,7 +140,7 @@ const Pagination = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {currentItems && currentItems.map((employee) => (
+                            {employees && employees.map((employee) => (
                                 <tr key={employee.id}>
                                     <td className="border px-4 py-2">{employee.id}</td>
                                     <td className="border px-4 py-2">{employee.firstName} {employee.lastName}</td>
@@ -144,24 +167,22 @@ const Pagination = () => {
                     </table>
 
                     <div className='text-center mt-10 mb-2 shadow-gray-300'>
-                        <div className="">
-                            <button onClick={handlePreviouBtn} disabled={currentPage === 1} className={`border rounded mx-1 p-2 ${currentPage === 1 ? "hidden" : "bg-blue-600 text-white"}`}>Previous</button>
-                            {Array.from({ length: 10 }, (_, index) => (
-                                <button
-                                    key={index}
-                                    className={`rounded-full bg-slate-50 text-black border mx-1 px-3 py-2 ${currentPage === index + 1 ? 'bg-yellow-400 text-white border-2 ' : ''}`}
-                                    onClick={() => setCurrentPage(index + 1)}
-                                >
-                                    {index + 1}
-                                </button>
-                            ))}
-                            <button onClick={handleNextBtn} disabled={currentPage === 10} className={`border rounded mx-1 p-2 ${currentPage === 10 ? "hidden" : "bg-blue-600 text-white"}`}>Next</button>
-                        </div>
+                        <button className={`${currentPage === 1 ? "bg-blue-400" : 'bg-blue-600'}  text-slate-50 px-2 py-1 rounded-md mx-3`}
+                            onClick={handlePrevious} disabled={currentPage === 1 || loading}>
+                            Previous
+                        </button>
+                        <span className='font-medium'> Page {currentPage} / {totalPages} </span>
+                        <button className={`${currentPage === totalPages ? "bg-blue-400" : 'bg-blue-600 '} text-slate-50 px-2 py-1 rounded-md mx-3`}
+                            onClick={handleNext} disabled={currentPage === totalPages || loading}>
+                            Next
+                        </button>
                     </div>
                 </div>
             </div>
         </>
-    );
+
+
+    )
 }
 
-export default Pagination;
+export default EmployeesList

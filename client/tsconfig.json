@@ -38,7 +38,7 @@
     "pages/submission.tsx",
     "components/Pagination.jsx",
     "components/Candidates.jsx"
-, "app/candidates/page.jsx"  ],
+, "app/candidates/page.jsx", "pages/linechart.jsx", "components/Chat.jsx"  ],
   "exclude": [
     "node_modules"
   ]
